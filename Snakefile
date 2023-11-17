@@ -4,10 +4,7 @@ from functools import partial
 from os.path import dirname
 from uuid import uuid4
 
-workdir: "/exports/me-lcco-aml-hpc/Leucegene_output"
-
-include: "/home/jpseverens/STAR_counts/includes/qc-seq/Snakefile"
-include: "/home/jpseverens/STAR_counts/includes/expression/Snakefile"
+include: "includes/expression/Snakefile"
 
 settings=config["settings"]
 
