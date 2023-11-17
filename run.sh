@@ -3,7 +3,7 @@
 set -eux
 set -o pipefail
 
-cd /exports/me-lcco-aml-hpc/Leucegene_output
+cd /exports/me-lcco-aml-hpc/Leucegene_output #Output dir
 
 module load container/singularity/3.8.0/gcc.8.3.1
 module load tools/miniconda/python3.8/4.9.2
@@ -22,7 +22,7 @@ readonly latency_wait=120
 readonly jobs_per_sec=30
 readonly singularity_args=' --containall --bind /exports:/exports,/home/jpseverens:/home/jpseverens '
 readonly cluster_command='sbatch --parsable --mem={cluster.vmem} -N 1 -n {cluster.threads} --time {cluster.time} --tmp={cluster.tmp} --job-name={rule} --partition {cluster.queue}'
-readonly slurm_cluster_status=/home/jpseverens/slurm-cluster-status/slurm-cluster-status.py
+readonly slurm_cluster_status=/home/jpseverens/slurm-cluster-status/slurm-cluster-status.py 
 
 
 function run_snakemake () {
