@@ -1,0 +1,65 @@
+library(stringr)
+
+# Get files
+fastq_dir <- "/exports/archive/me-lcco-aml-archive/Arindrarto2020/rawdata"
+files <- list.files(fastq_dir, "fastq", full.names = T, recursive = T)
+files <- files[grepl("_", files)]
+
+# Get sample names
+samples <- list.files(fastq_dir, "fastq", full.names = F, recursive = T)
+samples <- samples[grepl("_", samples)]
+samples <- unique(gsub("_R[1-9].fastq.gz", "", samples))
+samples <- unique(gsub("_[A-Z].+", "", samples))
+samples <- unique(gsub(".+_", "", samples))
+samples <- unique(samples)
+samples
+
+# Edit config.yml
+config <- readLines("/home/jpseverens/STAR_counts/config_base.yml")
+config_file_base1 <- config[1:7]
+config_file_base2 <- config[64:65]
+config_sample_1lane <- config[8:15]
+
+formatted_sample_input_start <- config_sample_1lane[1:2]
+formatted_sample_input_end <- config_sample_1lane[7:8]
+
+formatted_sample_input_middle <- config_sample_1lane[3:6]
+formatted_sample_input_middle[length(formatted_sample_input_middle)] <- "        },"
+
+# For samples need to see if multiple lanes were used
+# And then get samples in good format
+
+samples_format_HAMLET <- function(sample, files){
+  index <- grepl(sample, files)
+  relevant_paths <- files[index]
+  relevant_paths <- str_sort(relevant_paths)
+  # Number of lanes
+  n_lanes <- sum(index, na.rm = TRUE)/2
+  n_files <- n_lanes * 2
+  if(!(n_lanes == round(n_lanes))){
+    cat(paste0(sample, " misses files"))
+    print(paste0(sample, " misses files"))
+  }
+  else{
+    formatted_sample_input_middle_f <- unlist(lapply(1:n_lanes, function(x){
+      formatted_sample_input_middle_f <- gsub("rg_1", paste0("rg_", x), formatted_sample_input_middle)
+      formatted_sample_input_middle_f <- gsub("file_R1", relevant_paths[x+x-1], formatted_sample_input_middle_f)
+      formatted_sample_input_middle_f <- gsub("file_R3", relevant_paths[x*2], formatted_sample_input_middle_f)
+    }))
+    formatted_sample_input_middle_f[length(formatted_sample_input_middle_f)] <- "        }"
+    
+    formatted_sample_input_start_f <- gsub("sample_name", sample, formatted_sample_input_start)
+    formatted_sample_input <- c(formatted_sample_input_start_f, formatted_sample_input_middle_f, formatted_sample_input_end)
+  return(formatted_sample_input)}
+}
+
+# Write to config files, split per 40 samples to not overload server
+splitss <- split(samples, ceiling(seq_along(samples)/40))
+lapply(1:length(splitss), function(i){
+  samples <- splitss[[i]]
+  config_samples <- unlist(lapply(samples, samples_format_HAMLET, files = files))
+  output <- c(config_file_base1, config_samples, config_file_base2)
+  output <- gsub("//","/", output)
+  path_out <- paste0("/config_", i, ".yml")
+  writeLines(output, path_out)
+})

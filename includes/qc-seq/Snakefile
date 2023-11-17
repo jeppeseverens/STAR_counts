@@ -1,0 +1,108 @@
+from os import path
+
+containers = {
+    "debian": "docker://debian:buster-slim",
+    "crimson": "docker://quay.io/biocontainers/crimson:1.1.0--pyh5e36f6f_0",
+    "cutadapt": "docker://quay.io/biocontainers/cutadapt:4.4--py39hf95cd2a_1",
+    "fastqc": "docker://quay.io/biocontainers/fastqc:0.11.9--hdfd78af_1",
+}
+
+#cutadapt:4.1--py310h1425a21_1
+def get_r(strand, wildcards):
+    """Get fastq files on a single strand for a sample"""
+    s = config["samples"].get(wildcards.sample)
+    rs = []
+    for rg in sorted(s["read_groups"].keys()):
+        rs.append(s["read_groups"][rg][strand])
+    return rs
+
+get_r1 = partial(get_r, "R1")
+get_r2 = partial(get_r, "R2")
+
+def get_readgroup_per_sample():
+    for sample in config["samples"]:
+        for rg in config["samples"][sample]["read_groups"]:
+            yield rg, sample
+
+
+def get_fastq(wildcards):
+    """ Get the fastq files from the config """
+    return (
+        config["samples"][wildcards.sample]["read_groups"]
+                [wildcards.read_group][wildcards.pair]
+    )
+
+def get_forward(wildcards):
+    """ Get the forward fastq file from the config """
+    return (
+        config["samples"][wildcards.sample]["read_groups"]
+                [wildcards.read_group]["R1"]
+    )
+
+def get_reverse(wildcards):
+    """ Get the reverse fastq file from the config """
+    return (
+        config["samples"][wildcards.sample]["read_groups"]
+            [wildcards.read_group]["R2"]
+    )
+
+def get_readgroup(wildcards):
+    return config["samples"][wildcards.sample]["read_groups"]
+
+rule all_qc:
+    input:
+        cutadapt = expand(
+            ("{sample}/qc-seq/{read_group}/{sample}-{read_group}-{{pair}}.fq.gz".format(
+                sample=s, read_group=rg
+            )
+            for rg, s in get_readgroup_per_sample()),
+            pair=("R1", "R2")
+        ),
+        merged_fastqs = expand("{sample}/{sample}-{pair}.fq.gz", sample=config["samples"],
+                                pair=("R1", "R2")
+        )
+
+rule cutadapt:
+    """Clip fastq files"""
+    input:
+        fq1=get_forward,
+        fq2=get_reverse
+    output:
+        fq1=temp("{sample}/qc-seq/{read_group}/{sample}-{read_group}-R1.fq.gz"),
+        fq2=temp("{sample}/qc-seq/{read_group}/{sample}-{read_group}-R2.fq.gz")
+    threads: 8
+    singularity: containers["cutadapt"]
+    shell: "cutadapt -a AGATCGGAAGAG -A AGATCGGAAGAG "
+           "--minimum-length=20 --quality-cutoff=20,20 --compression-level=1 "
+           "--cores={threads} --pair-filter=any -m 1 "
+           "--output={output.fq1} --paired-output={output.fq2} "
+           "{input.fq1} {input.fq2}"
+
+
+rule merge_fastqs_r1:
+    """Merges all FASTQ files for a given sample from its read groups."""
+    input:
+        fqs = lambda wildcards: expand(
+            "{sample}/qc-seq/{read_group}/{sample}-{read_group}-R1.fq.gz",
+            sample=wildcards.sample, read_group=get_readgroup(wildcards)
+        )
+    output:
+        fq=temp("{sample}/{sample}-R1.fq.gz"),
+    singularity: containers["debian"]
+    shell:
+        "cp {input.fqs} {output.fq} || cat {input.fqs} > {output.fq}"
+
+
+rule merge_fastqs_r2:
+    """Merges all FASTQ files for a given sample from its read groups."""
+    input:
+        fqs = lambda wildcards: expand(
+            "{sample}/qc-seq/{read_group}/{sample}-{read_group}-R2.fq.gz",
+            sample=wildcards.sample, read_group=get_readgroup(wildcards)
+        )
+    output:
+        fq=temp("{sample}/{sample}-R2.fq.gz"),
+    singularity: containers["debian"]
+    shell:
+        "cp {input.fqs} {output.fq} || cat {input.fqs} > {output.fq}"
+

@@ -1,0 +1,28 @@
+__default__:
+  job_name: hamlet
+  queue: all
+  vmem: 30G
+  threads: 1
+  time: 5-0
+  tmp: 5G
+
+cutadapt:
+    vmem: 18G
+    threads: 8
+    time: 0-1
+
+merge_fastqs_r1:
+    vmem: 5G
+    threads: 1
+    time: 0-1
+
+merge_fastqs_r2:
+    vmem: 5G
+    threads: 1
+    time: 0-1
+
+count_fragments_per_gene:
+  vmem: 120G
+  threads: 12
+  time: 1-0
+
